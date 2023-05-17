@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
-const csvTonJson = require('convert-csv-to-json');
+const csvToJson = require('convert-csv-to-json');
 const path = require('path');
 const { Parser } = require('json2csv');
 
@@ -37,8 +37,20 @@ app.post('/api/upload/json', upload.array('files'), (req, res) => {
     let csv = parser.parse(json);
 
     fs.writeFile(csvFilePath, csv, function (err) {
-      if (err) throw err;
+      if (err) {
+        console.error(`Error writing file ${csvFilePath}:`, err);
+        return;
+      }
       console.log('Saved!');
+
+      // delete original file after conversion
+      fs.unlink(jsonFilePath, (err) => {
+        if (err) {
+          console.error(`Error deleting file ${jsonFilePath}:`, err);
+          return;
+        }
+        console.log(`${jsonFilePath} was deleted`);
+      });
     });
   });
   res.status(200).send('Files uploaded successfully');
@@ -57,8 +69,20 @@ app.post('/api/upload/csv', upload.array('files'), (req, res) => {
     let json = csvToJson.fieldDelimiter(',').getJsonFromCsv(csvFilePath);
 
     fs.writeFile(jsonFilePath, JSON.stringify(json, null, 4), function (err) {
-      if (err) throw err;
+      if (err) {
+        console.error(`Error writing file ${jsonFilePath}:`, err);
+        return;
+      }
       console.log('Saved!');
+
+      // delete original file after conversion
+      fs.unlink(csvFilePath, (err) => {
+        if (err) {
+          console.error(`Error deleting file ${csvFilePath}:`, err);
+          return;
+        }
+        console.log(`${csvFilePath} was deleted`);
+      });
     });
   });
   res.status(200).send('Files uploaded successfully');
