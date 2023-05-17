@@ -1,13 +1,12 @@
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
-const csvToJson = require('convert-csv-to-json');
 const path = require('path');
 const { Parser } = require('json2csv');
+const _ = require('lodash');
+const csv = require('csvtojson');
 
 const app = express();
-
-// multer configuration for file uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, './');
@@ -19,6 +18,9 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+app.use(express.static('jsonFiles'));
+app.use(express.static('csvFiles'));
+
 app.post('/api/upload/json', upload.array('files'), (req, res) => {
   req.files.forEach(file => {
     if (path.extname(file.originalname) !== '.json') {
@@ -27,9 +29,16 @@ app.post('/api/upload/json', upload.array('files'), (req, res) => {
     }
 
     const jsonFilePath = path.join(__dirname, file.originalname);
-    const csvFilePath = path.join(__dirname, 'csvFiles', `${file.originalname.replace('.json', '')}.csv`);
+    const csvFilePath = path.join(__dirname, 'csvFiles', `${file.originalname}.csv`);
 
     let json = require(jsonFilePath);
+
+    // Flatten the 'metadata' property
+    json = json.map(item => {
+      item.metadata = item.metadata.decision;
+      return item;
+    });
+
     let parser = new Parser();
     let csv = parser.parse(json);
 
@@ -38,15 +47,12 @@ app.post('/api/upload/json', upload.array('files'), (req, res) => {
         console.error(`Error writing file ${csvFilePath}:`, err);
         return;
       }
-      console.log('Saved!');
 
-      // delete original file after conversion
       fs.unlink(jsonFilePath, (err) => {
         if (err) {
           console.error(`Error deleting file ${jsonFilePath}:`, err);
           return;
         }
-        console.log(`${jsonFilePath} was deleted`);
       });
     });
   });
@@ -61,24 +67,29 @@ app.post('/api/upload/csv', upload.array('files'), (req, res) => {
     }
 
     const csvFilePath = path.join(__dirname, file.originalname);
-    const jsonFilePath = path.join(__dirname, 'jsonFiles', `${file.originalname.replace('.csv', '')}.json`);
+    const jsonFilePath = path.join(__dirname, 'jsonFiles', `${file.originalname}.json`);
 
-    let json = csvToJson.fieldDelimiter(',').getJsonFromCsv(csvFilePath);
+    csv()
+    .fromFile(csvFilePath)
+    .then((json) => {
+      // Convert the 'metadata' property back to an object
+      json = json.map(item => {
+        item.metadata = { decision: item.metadata };
+        return item;
+      });
 
-    fs.writeFile(jsonFilePath, JSON.stringify(json, null, 4), function (err) {
-      if (err) {
-        console.error(`Error writing file ${jsonFilePath}:`, err);
-        return;
-      }
-      console.log('Saved!');
-
-      // delete original file after conversion
-      fs.unlink(csvFilePath, (err) => {
+      fs.writeFile(jsonFilePath, JSON.stringify(json, null, 4), function (err) {
         if (err) {
-          console.error(`Error deleting file ${csvFilePath}:`, err);
+          console.error(`Error writing file ${jsonFilePath}:`, err);
           return;
         }
-        console.log(`${csvFilePath} was deleted`);
+
+        fs.unlink(csvFilePath, (err) => {
+          if (err) {
+            console.error(`Error deleting file ${csvFilePath}:`, err);
+            return;
+          }
+        });
       });
     });
   });
@@ -86,5 +97,5 @@ app.post('/api/upload/csv', upload.array('files'), (req, res) => {
 });
 
 app.listen(3001, () => {
-  console.log('Server is running on port 3001');
+  console.log('Server is running on port 3001')
 });
