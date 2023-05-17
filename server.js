@@ -19,9 +19,6 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-app.use(express.static('jsonFiles'));
-app.use(express.static('csvFiles'));
-
 app.post('/api/upload/json', upload.array('files'), (req, res) => {
   req.files.forEach(file => {
     if (path.extname(file.originalname) !== '.json') {
@@ -30,7 +27,7 @@ app.post('/api/upload/json', upload.array('files'), (req, res) => {
     }
 
     const jsonFilePath = path.join(__dirname, file.originalname);
-    const csvFilePath = path.join(__dirname, 'csvFiles', `${file.originalname}.csv`);
+    const csvFilePath = path.join(__dirname, 'csvFiles', `${file.originalname.replace('.json', '')}.csv`);
 
     let json = require(jsonFilePath);
     let parser = new Parser();
@@ -64,7 +61,7 @@ app.post('/api/upload/csv', upload.array('files'), (req, res) => {
     }
 
     const csvFilePath = path.join(__dirname, file.originalname);
-    const jsonFilePath = path.join(__dirname, 'jsonFiles', `${file.originalname}.json`);
+    const jsonFilePath = path.join(__dirname, 'jsonFiles', `${file.originalname.replace('.csv', '')}.json`);
 
     let json = csvToJson.fieldDelimiter(',').getJsonFromCsv(csvFilePath);
 
