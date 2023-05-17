@@ -1,11 +1,12 @@
 import React from 'react';
-import './App.css';
-import FilePicker from './FilePicker';
+import FilePicker from './FilePicker'; // Assuming FilePicker.js is in the same directory
 
 function App() {
   return (
     <div className="App">
-      <FilePicker />
+      <h1>JSON/CSV Converter</h1>
+      <FilePicker convertType='json' />
+      <FilePicker convertType='csv' />
     </div>
   );
 }

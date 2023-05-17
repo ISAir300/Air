@@ -1,39 +1,43 @@
-import React from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 
-const FilePicker = () => {
-  // Create a ref to access the file input DOM element
-  const fileInputRef = React.createRef();
+function FilePicker({ convertType }) {
+  const [successMessage, setSuccessMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const uploadFiles = async () => {
-    // Get the list of files from the file input element
-    const files = fileInputRef.current.files;
+  // Post request to server
+  const handleFileUpload = async (event) => {
+    let files = event.target.files;
+    let formData = new FormData();
 
-    // Create a new FormData instance
-    const formData = new FormData();
-
-    // Append each file to the form data
     for (let i = 0; i < files.length; i++) {
       formData.append('files', files[i]);
     }
 
-    // Use axios to send a POST request to the server with the form data
-    try {
-      await axios.post('/api/upload', formData);
-    } catch (error) {
-      console.error('Error uploading files:', error);
+    // CHANGE HERE TO: Your actual server URL 
+    let serverURL = process.env.REACT_APP_SERVER_URL || 'http://localhost:3001';
+    
+    let apiEndpoint = `${serverURL}/api/upload/${convertType}`;
+
+    let response = await fetch(apiEndpoint, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (response.ok) {
+      setSuccessMessage(`Files uploaded and converted to ${convertType.toUpperCase()} successfully.`);
+    } else {
+      setErrorMessage(`Failed to upload files. ${response.status}: ${response.statusText}`);
     }
   };
 
   return (
     <div>
-      {/* File input element; 'multiple' attribute allows selecting multiple files */}
-      <input type="file" accept=".json" multiple ref={fileInputRef} />
-
-      {/* Button that triggers the file upload when clicked */}
-      <button onClick={uploadFiles}>Upload</button>
+      <h2>Upload {convertType.toUpperCase()} to convert to {convertType === 'json' ? 'CSV' : 'JSON'}</h2>
+      <input type="file" multiple onChange={handleFileUpload} accept={`.${convertType}`} />
+      {successMessage && <p className="success">{successMessage}</p>}
+      {errorMessage && <p className="error">{errorMessage}</p>}
     </div>
   );
-};
+}
 
 export default FilePicker;

@@ -1,50 +1,96 @@
 const express = require('express');
-const multer = require('multer'); // Multer is a middleware for handling multipart/form-data (file uploads)
-const json2csv = require('json2csv').parse;
+const multer = require('multer');
 const fs = require('fs');
+const csvToJson = require('convert-csv-to-json');
 const path = require('path');
+const { Parser } = require('json2csv');
+const cors = require('cors');
 
 const app = express();
 
-// Configure Multer to store uploaded files in the 'uploads/' directory
-const upload = multer({ dest: 'uploads/' });
+// multer configuration for file uploads
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './');
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.originalname);
+  }
+});
 
-// Define an endpoint for file upload
-app.post('/api/upload', upload.array('files'), (req, res) => {
-  // Process each uploaded file
+const upload = multer({ storage: storage });
+
+app.use(cors());
+app.use(express.static('jsonFiles'));
+app.use(express.static('csvFiles'));
+
+app.post('/api/upload/json', upload.array('files'), (req, res) => {
   req.files.forEach(file => {
-    // Read the file
-    fs.readFile(file.path, 'utf8', (err, jsonString) => {
+    if (path.extname(file.originalname) !== '.json') {
+      res.status(400).send(`Unsupported file type for ${file.originalname}. Only .json files are supported.`);
+      return;
+    }
+
+    const jsonFilePath = path.join(__dirname, file.originalname);
+    const csvFilePath = path.join(__dirname, 'csvFiles', `${file.originalname}.csv`);
+
+    let json = require(jsonFilePath);
+    let parser = new Parser();
+    let csv = parser.parse(json);
+
+    fs.writeFile(csvFilePath, csv, function (err) {
       if (err) {
-        console.log(`Error reading file ${file.path}:`, err);
+        console.error(`Error writing file ${csvFilePath}:`, err);
         return;
       }
+      console.log('Saved!');
 
-      // Parse JSON string to an array
-      const jsonArray = JSON.parse(jsonString);
-
-      // Convert JSON to CSV
-      const csvData = json2csv(jsonArray);
-
-      // Define the output filename
-      const outputFilename = path.join('csvFiles', path.basename(file.originalname, '.json') + '.csv');
-
-      // Write CSV data to the output file
-      fs.writeFile(outputFilename, csvData, function (error) {
-        if (error) {
-          console.error('write error:  ', error.message);
-        } else {
-          console.log(`Successful Write to ${outputFilename}`);
+      // delete original file after conversion
+      fs.unlink(jsonFilePath, (err) => {
+        if (err) {
+          console.error(`Error deleting file ${jsonFilePath}:`, err);
+          return;
         }
+        console.log(`${jsonFilePath} was deleted`);
       });
     });
   });
-
-  // Send a successful response
-  res.status(200).send();
+  res.status(200).send('Files uploaded successfully');
 });
 
-// Start the server
-app.listen(3001, () => {
+app.post('/api/upload/csv', upload.array('files'), (req, res) => {
+  req.files.forEach(file => {
+    if (path.extname(file.originalname) !== '.csv') {
+      res.status(400).send(`Unsupported file type for ${file.originalname}. Only .csv files are supported.`);
+      return;
+    }
+
+    const csvFilePath = path.join(__dirname, file.originalname);
+    const jsonFilePath = path.join(__dirname, 'jsonFiles', `${file.originalname}.json`);
+
+    let json = csvToJson.fieldDelimiter(',').getJsonFromCsv(csvFilePath);
+
+    fs.writeFile(jsonFilePath, JSON.stringify(json, null, 4), function (err) {
+      if (err) {
+        console.error(`Error writing file ${jsonFilePath}:`, err);
+        return;
+      }
+      console.log('Saved!');
+
+      // delete original file after conversion
+      fs.unlink(csvFilePath, (err) => {
+        if (err) {
+          console.error(`Error deleting file ${csvFilePath}:`, err);
+          return;
+        }
+        console.log(`${csvFilePath} was deleted`);
+      });
+    });
+  });
+  res.status(200).send('Files uploaded successfully');
+});
+
+// CHANGE HERE TO: Your actual port number if it's not provided by the hosting platform
+app.listen(process.env.PORT || 3001, () => {
   console.log('Server is running on port 3001');
 });
